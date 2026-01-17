@@ -1,0 +1,27 @@
+---
+Language:                       Cpp
+BasedOnStyle:                   Chromium
+
+PointerAlignment: Right
+AllowShortBlocksOnASingleLine:  Empty
+BreakBeforeBinaryOperators:     NonAssignment
+ColumnLimit:                    130
+IndentWidth:                    2
+InsertBraces:                   true
+SortIncludes:                   CaseInsensitive
+# MacroBackslashAlign: Right
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterControlStatement: false   # keeps "if (...) {" on same line
+  BeforeElse: true               # puts "else" on its own new line
+NamespaceIndentation: All
+FixNamespaceComments: false
+IndentPPDirectives: AfterHash
+UseTab: Never
+TabWidth: 2
+PPIndentWidth: 2
+IncludeCategories:
+  - Regex:                      '".*pch\.h"'
+    Priority:                   -1
+    CaseSensitive:              true
+---
