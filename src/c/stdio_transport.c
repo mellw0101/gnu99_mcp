@@ -1,18 +1,14 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include "../include/proto.h"
 
-#include "../include/config.h"
-#include "../include/mcp.h"
-#include "../include/stdio_transport.h"
-#include "../include/tools.h"
 
 static char *line = NULL;
+
 
 int init_stdio(void) {
   // No stdout noise — only valid MCP messages on stdout.
   setvbuf(stdout, NULL, _IONBF, 0);
   line = NULL;
-  return (0);
+  return 0;
 }
 
 void end_stdio(void) {

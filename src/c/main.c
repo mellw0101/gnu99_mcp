@@ -1,20 +1,5 @@
-// mcp_stdio_server.c — minimal MCP stdio server (NDJSON, no Content-Length)
-#include <signal.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "../include/proto.h"
 
-#include "../include/cJSON.h"
-#include "../include/config.h"
-#include "../include/http.h"
-#include "../include/stdio_transport.h"
-#include "../include/tools.h"
-
-int done = 0;
-
-#define _PP_CAT(a, b)  a##b
-#define PP_CAT(a, b)   _PP_CAT(a, b)
 
 #if MCP_STDIO
 # define MCP_CALL(x)  PP_CAT(x, _stdio)
@@ -22,9 +7,15 @@ int done = 0;
 # define MCP_CALL(x)  PP_CAT(x, _http)
 #endif
 
+
+int done = 0;
+
+
+
 static volatile sig_atomic_t g_stop = 0;
 
-static void on_sigint(int __attribute__((__unused__)) sig) {
+
+static void on_sigint(int _UNUSED sig) {
   g_stop = 1;
 }
 

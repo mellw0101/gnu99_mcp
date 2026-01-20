@@ -1,0 +1,4 @@
+#!/bin/bash
+
+AmakeCpp --test
+AmakeCpp --install /usr/lib/libfcio.a

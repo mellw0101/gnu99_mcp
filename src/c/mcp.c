@@ -1,30 +1,11 @@
-#include "../include/mcp.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "../include/config.h"
-#include "../include/http.h"
-#include "../include/tools.h"
+#include "../include/proto.h"
 
-typedef struct argument  argument;
 
-struct argument {
-  const char *name;
-  enum type type;           // "str", "int", "float", "bool"
-  const char *description;  // optional
-  struct argument *next;
-};
+/* linked list of registered tools. */
+static tool *tool_list = NULL;
 
-struct tool {
-  const char *name;
-  const char *description;
-  struct argument *arguments;  // JSON schema as string
-  struct tool *next;
-};
 
-static struct tool *tool_list = NULL;  // linked list of registered tools
-
-void add_argument(struct tool *tool, const char *name, enum type type, const char *description) {
+void add_argument(tool *tool, const char *name, type type, const char *description) {
   struct argument *arg = malloc(sizeof(struct argument));
   arg->name = name;
   arg->type = type;
@@ -42,8 +23,8 @@ static void free_arguments(argument *head) {
   }
 }
 
-struct tool *add_tool(const char *name, const char *description) {
-  struct tool *t = malloc(sizeof(struct tool));
+tool *add_tool(const char *name, const char *description) {
+  tool *t = xmalloc(sizeof(*t));
   t->name = name;
   t->description = description;
   t->arguments = NULL;
@@ -63,7 +44,7 @@ static void free_tools(void) {
   tool_list = NULL;
 }
 
-static void add_arguments(cJSON *props, cJSON *req, struct tool *tool) {
+static void add_arguments(cJSON *props, cJSON *req, tool *tool) {
   struct argument *arg = tool->arguments;
   while (arg) {
     cJSON *jsonArg = cJSON_CreateObject();
@@ -76,11 +57,11 @@ static void add_arguments(cJSON *props, cJSON *req, struct tool *tool) {
     else if (arg->type == TYPE_BOOL) {
       cJSON_AddStringToObject(jsonArg, "type", "boolean");
     }
+    /* Default to string. */
     else {
-      cJSON_AddStringToObject(jsonArg, "type", "string");  // default to string
+      cJSON_AddStringToObject(jsonArg, "type", "string");
     }
-
-    if (arg->description != NULL) {
+    if (arg->description) {
       cJSON_AddStringToObject(jsonArg, "description", arg->description);
     }
     cJSON_AddItemToObject(props, arg->name, jsonArg);
@@ -89,7 +70,7 @@ static void add_arguments(cJSON *props, cJSON *req, struct tool *tool) {
   }
 }
 
-static cJSON *get_json_for_tool(struct tool *tool) {
+static cJSON *get_json_for_tool(tool *tool) {
   cJSON *t = cJSON_CreateObject();
   cJSON_AddStringToObject(t, "name", tool->name);
   cJSON_AddStringToObject(t, "description", tool->description);
@@ -104,17 +85,14 @@ static cJSON *get_json_for_tool(struct tool *tool) {
   return (t);
 }
 
-#define PROTOCOL_VERSION "2025-06-18"  // match spec
-
-static void send_json(cJSON *obj, int cfd) {
-  (void)cfd;
+static void send_json(cJSON *obj, int _UNUSED cfd) {
   char *s = cJSON_PrintUnformatted(obj);  // single line, no pretty \n
 #if defined(MCP_STDIO)
   fputs(s, stdout);
   fputc('\n', stdout);  // newline = message boundary
   fflush(stdout);
 #else
-  // printf("Responding %s\n",s);
+  printf("Responding %s\n",s);
   http_200_json(cfd, s);
 #endif
   free(s);
@@ -149,7 +127,6 @@ cJSON *handle_fetch(void) {
   cJSON *cap = cJSON_CreateObject();
   cJSON_AddBoolToObject(cap, "tools", 1);
   cJSON_AddItemToObject(result, "capabilities", cap);
-
   return result;
 }
 
@@ -202,37 +179,41 @@ cJSON *create_result_text(const char *text) {
   return res;
 }
 
-void dispatch(const char *line, int cfd) {
-  if (line[0] == 0)  // It was a get request
-  {
-    cJSON *resp = handle_fetch();
-    send_json(resp, cfd);
+void dispatch(const char *line, int fd) {
+  cJSON *resp;
+  cJSON *root;
+  cJSON *e;
+  cJSON *id;
+  cJSON *method;
+  cJSON *params;
+  const char *m;
+  /* It was a get request */
+  if (!*line) {
+    resp = handle_fetch();
+    send_json(resp, fd);
     cJSON_Delete(resp);
     return;
   }
-  cJSON *root = cJSON_Parse(line);
+  root = cJSON_Parse(line);
   if (!root) {
-    cJSON *e = err(NULL, MCP_PARSE_ERROR, "Parse error");
-    send_json(e, cfd);
+    e = err(NULL, MCP_PARSE_ERROR, "Parse error");
+    send_json(e, fd);
     cJSON_Delete(e);
     return;
   }
-
-  cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "id");  // may be NULL for notifications
-  cJSON *method = cJSON_GetObjectItemCaseSensitive(root, "method");
-  cJSON *params = cJSON_GetObjectItemCaseSensitive(root, "params");
-
+  /* May be NULL for notifications. */
+  id     = cJSON_GetObjectItemCaseSensitive(root, "id");
+  method = cJSON_GetObjectItemCaseSensitive(root, "method");
+  params = cJSON_GetObjectItemCaseSensitive(root, "params");
   if (!cJSON_IsString(method) || !method->valuestring) {
-    cJSON *e = err(id, MCP_INVALID_REQUEST, "Invalid Request");
-    send_json(e, cfd);
+    e = err(id, MCP_INVALID_REQUEST, "Invalid Request");
+    send_json(e, fd);
     cJSON_Delete(e);
     cJSON_Delete(root);
     return;
   }
-
-  cJSON *resp = NULL;
-  const char *m = method->valuestring;
-
+  resp = NULL;
+  m = method->valuestring;
   if (strcmp(m, "initialize") == 0) {
     resp = handle_initialize(id, params);
   }
@@ -245,17 +226,16 @@ void dispatch(const char *line, int cfd) {
   else if (strcmp(m, "tools/call") == 0) {
     resp = handle_tools_call(id, params);
   }
+  /* Notification: do NOT respond */
   else if (strcmp(m, "notifications/initialized") == 0) {
-    // Notification: do NOT respond
-    http_202(cfd);
+    http_202(fd);
     cJSON_Delete(root);
     return;
   }
   else {
     resp = err(id, MCP_METHOD_NOT_FOUND, "Method not found");
   }
-
-  send_json(resp, cfd);
+  send_json(resp, fd);
   cJSON_Delete(resp);
   cJSON_Delete(root);
 }
