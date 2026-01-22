@@ -37,6 +37,7 @@
 #  pragma warning(disable : 4001)
 #endif
 
+#include "../include/proto.h"
 #include <ctype.h>
 #include <float.h>
 #include <limits.h>
@@ -46,11 +47,11 @@
 #include <string.h>
 
 #ifdef ENABLE_LOCALES
-#  include <locale.h>
+# include <locale.h>
 #endif
 
 #if defined(_MSC_VER)
-#  pragma warning(pop)
+# pragma warning(pop)
 #endif
 #ifdef __GNUC__
 #  pragma GCC visibility pop
@@ -150,19 +151,22 @@ typedef struct internal_hooks {
 
 #if defined(_MSC_VER)
 /* work around MSVC error C2322: '...' address of dllimport '...' is not static */
-static void *CJSON_CDECL internal_malloc(size_t size) {
+static void *CJSON_CDECL
+internal_malloc(size_t size) {
   return malloc(size);
 }
-static void CJSON_CDECL internal_free(void *pointer) {
+static void CJSON_CDECL
+internal_free(void *pointer) {
   free(pointer);
 }
-static void *CJSON_CDECL internal_realloc(void *pointer, size_t size) {
+static void *CJSON_CDECL
+internal_realloc(void *pointer, size_t size) {
   return realloc(pointer, size);
 }
 #else
-#  define internal_malloc malloc
-#  define internal_free free
-#  define internal_realloc realloc
+# define internal_malloc malloc
+# define internal_free free
+# define internal_realloc realloc
 #endif
 
 /* strlen of character literals resolved at compile time */
@@ -170,21 +174,19 @@ static void *CJSON_CDECL internal_realloc(void *pointer, size_t size) {
 
 static internal_hooks global_hooks = {internal_malloc, internal_free, internal_realloc};
 
-static unsigned char *cJSON_strdup(const unsigned char *string, const internal_hooks *const hooks) {
+static Uchar *
+cJSON_strdup(const Uchar *string, const internal_hooks *const hooks) {
   size_t length = 0;
-  unsigned char *copy = NULL;
-
+  Uchar *copy = NULL;
   if (string == NULL) {
     return NULL;
   }
-
-  length = strlen((const char *)string) + sizeof("");
-  copy = (unsigned char *)hooks->allocate(length);
+  length = (strlen((const char *)string) + 1);
+  copy = hooks->allocate(length);
   if (copy == NULL) {
     return NULL;
   }
   memcpy(copy, string, length);
-
   return copy;
 }
 
@@ -216,11 +218,10 @@ CJSON_PUBLIC(void) cJSON_InitHooks(cJSON_Hooks *hooks) {
 
 /* Internal constructor. */
 static cJSON *cJSON_New_Item(const internal_hooks *const hooks) {
-  cJSON *node = (cJSON *)hooks->allocate(sizeof(cJSON));
+  cJSON *node = hooks->allocate(sizeof *node);
   if (node) {
     memset(node, '\0', sizeof(cJSON));
   }
-
   return node;
 }
 
@@ -1689,20 +1690,21 @@ CJSON_PUBLIC(cJSON *) cJSON_GetArrayItem(const cJSON *array, int index) {
 
 static cJSON *get_object_item(const cJSON *const object, const char *const name, const cJSON_bool case_sensitive) {
   cJSON *current_element = NULL;
-
   if ((object == NULL) || (name == NULL)) {
     return NULL;
   }
-
   current_element = object->child;
   if (case_sensitive) {
-    while ((current_element != NULL) && (current_element->string != NULL) && (strcmp(name, current_element->string) != 0)) {
+    while ((current_element != NULL)
+    && (current_element->string != NULL) && (strcmp(name, current_element->string) != 0))
+    {
       current_element = current_element->next;
     }
   }
   else {
     while ((current_element != NULL)
-           && (case_insensitive_strcmp((const unsigned char *)name, (const unsigned char *)(current_element->string)) != 0)) {
+    && (case_insensitive_strcmp((const unsigned char *)name, (const unsigned char *)(current_element->string)) != 0))
+    {
       current_element = current_element->next;
     }
   }
@@ -1913,7 +1915,6 @@ CJSON_PUBLIC(cJSON *) cJSON_AddStringToObject(cJSON *const object, const char *c
   if (add_item_to_object(object, name, string_item, &global_hooks, false)) {
     return string_item;
   }
-
   cJSON_Delete(string_item);
   return NULL;
 }
@@ -2245,7 +2246,6 @@ CJSON_PUBLIC(cJSON *) cJSON_CreateObject(void) {
   if (item) {
     item->type = cJSON_Object;
   }
-
   return item;
 }
 
@@ -2467,22 +2467,22 @@ fail:
 }
 
 static void skip_oneline_comment(char **input) {
-  *input += static_strlen("//");
+  *input += SLTLEN("//");
 
   for (; (*input)[0] != '\0'; ++(*input)) {
     if ((*input)[0] == '\n') {
-      *input += static_strlen("\n");
+      *input += SLTLEN("\n");
       return;
     }
   }
 }
 
 static void skip_multiline_comment(char **input) {
-  *input += static_strlen("/*");
+  *input += SLTLEN("/*");
 
   for (; (*input)[0] != '\0'; ++(*input)) {
     if (((*input)[0] == '*') && ((*input)[1] == '/')) {
-      *input += static_strlen("*/");
+      *input += SLTLEN("*/");
       return;
     }
   }
@@ -2490,22 +2490,22 @@ static void skip_multiline_comment(char **input) {
 
 static void minify_string(char **input, char **output) {
   (*output)[0] = (*input)[0];
-  *input += static_strlen("\"");
-  *output += static_strlen("\"");
+  *input += SLTLEN("\"");
+  *output += SLTLEN("\"");
 
   for (; (*input)[0] != '\0'; (void)++(*input), ++(*output)) {
     (*output)[0] = (*input)[0];
 
     if ((*input)[0] == '\"') {
       (*output)[0] = '\"';
-      *input += static_strlen("\"");
-      *output += static_strlen("\"");
+      *input += SLTLEN("\"");
+      *output += SLTLEN("\"");
       return;
     }
     else if (((*input)[0] == '\\') && ((*input)[1] == '\"')) {
       (*output)[1] = (*input)[1];
-      *input += static_strlen("\"");
-      *output += static_strlen("\"");
+      *input += SLTLEN("\"");
+      *output += SLTLEN("\"");
     }
   }
 }

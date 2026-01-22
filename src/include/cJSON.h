@@ -99,27 +99,32 @@ then using the CJSON_API_VISIBILITY flag to "export" the same symbols the way CJ
 #define cJSON_IsReference 256
 #define cJSON_StringIsConst 512
 
+typedef struct cJSON  cJSON;
+
 /* The cJSON structure: */
-typedef struct cJSON {
+struct cJSON {
   /* next/prev allow you to walk array/object chains. Alternatively, use GetArraySize/GetArrayItem/GetObjectItem */
-  struct cJSON *next;
-  struct cJSON *prev;
+  cJSON *next;
+  cJSON *prev;
+  
   /* An array or object item will have a child pointer pointing to a chain of the items in the array/object. */
-  struct cJSON *child;
+  cJSON *child;
 
   /* The type of the item, as above. */
   int type;
 
   /* The item's string, if type==cJSON_String  and type == cJSON_Raw */
   char *valuestring;
+  
   /* writing to valueint is DEPRECATED, use cJSON_SetNumberValue instead */
   int valueint;
+  
   /* The item's number, if type==cJSON_Number */
   double valuedouble;
 
   /* The item's name string, if this item is the child of, or is in the list of subitems of an object. */
   char *string;
-} cJSON;
+};
 
 typedef struct cJSON_Hooks {
   /* malloc/free are CDECL on Windows regardless of the default calling convention of the compiler, so ensure the hooks allow
@@ -159,11 +164,7 @@ CJSON_PUBLIC(cJSON *) cJSON_ParseWithLength(const char *value, size_t buffer_len
 /* If you supply a ptr in return_parse_end and parsing fails, then return_parse_end will contain a pointer to the error so will
  * match cJSON_GetErrorPtr(). */
 CJSON_PUBLIC(cJSON *) cJSON_ParseWithOpts(const char *value, const char **return_parse_end, cJSON_bool require_null_terminated);
-CJSON_PUBLIC(cJSON *)
-cJSON_ParseWithLengthOpts(const char *value,
-                          size_t buffer_length,
-                          const char **return_parse_end,
-                          cJSON_bool require_null_terminated);
+CJSON_PUBLIC(cJSON *) cJSON_ParseWithLengthOpts(const char *value, size_t buffer_length, const char **return_parse_end, cJSON_bool require_null_terminated);
 
 /* Render a cJSON entity to text for transfer/storage. */
 CJSON_PUBLIC(char *) cJSON_Print(const cJSON *item);

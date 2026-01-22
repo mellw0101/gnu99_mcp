@@ -2,10 +2,15 @@
 
 
 #if MCP_STDIO
-# define MCP_CALL(x)  PP_CAT(x, _stdio)
+# define init       init_stdio
+# define process    process_stdio
+# define end        end_stdio
 #else
-# define MCP_CALL(x)  PP_CAT(x, _http)
+# define init       init_http
+# define process    process_http
+# define end        end_http
 #endif
+
 
 
 int done = 0;
@@ -15,21 +20,26 @@ int done = 0;
 static volatile sig_atomic_t g_stop = 0;
 
 
-static void on_sigint(int _UNUSED sig) {
+static void
+on_sigint(int _UNUSED sig) {
   g_stop = 1;
 }
 
-int main(void) {
+int
+main(void) {
+  mcp_init();
   signal(SIGINT, on_sigint);
   define_tools();
-  if (MCP_CALL(init)() != 0) {
+  if (init() != 0) {
     fprintf(stderr, "Failed to initialize MCP client\n");
     return 1;
   }
   while (!done && !g_stop) {
-    MCP_CALL(process)();
+    process();
     processing_loop();
+    /* Run at 30 hz. */
+    hiactime_msleep(16.666);
   }
-  MCP_CALL(end)();
+  end();
   return 0;
 }

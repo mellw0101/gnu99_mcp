@@ -1,20 +1,31 @@
+#include <stdio.h>
 #include "../include/proto.h"
 
 
 /* ---------------------------------------------------------- Define's ---------------------------------------------------------- */
 
 
-#ifndef QUEUE_CAP
-# define QUEUE_CAP 1024
-#endif
+// #ifndef QUEUE_CAP
+// # define QUEUE_CAP 1024
+// #endif
 
-#ifndef MSG_MAX
-# define MSG_MAX 4096
-#endif
+// #ifndef MSG_MAX
+// # define MSG_MAX 4096
+// #endif
 
 #define NOT_ALLOWED_STR  "not allowed"
 #define NOT_FOUND_STR    "not found"
 #define ACCEPTED_STR     "Accepted"
+
+#define OPTIONS_OPENAPI_JSON                                      \
+ "HTTP/1.1 204 No Content\r\n"                                    \
+ "Access-Control-Allow-Origin: \r\n*"                             \
+ "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"           \
+ "Access-Control-Allow-Headers: Content-Type, Authorization\r\n"  \
+ "Access-Control-Max-Age: 86400\r\n"                              \
+ "Content-Length: 0\r\n"                                          \
+ "Connection: keep-alive\r\n\r\n"
+
 
 #define CHUNK_SIZE  (4096)
 
@@ -53,7 +64,7 @@ struct HttpServer_t {
 //   mutex_t mu;
 // } msg_queue_t;
 
-__attribute__((__aligned__(4)))
+// __attribute__((__aligned__(4)))
 // typedef struct {
 //   int listen_fd;
 //   int send_fd;
@@ -106,7 +117,7 @@ static void
 http_server_push(int fd, char *data) {
   ASSERT(server);
   ASSERT(data);
-  printf("%s\n", data);
+  log_INFO_0("%s\n", data);
   MUTEX_ACTION(&server->mutex,
     queue_push(server->queue, msg_create(fd, data));
   );
@@ -133,7 +144,7 @@ read_socket(int fd, Ulong *outlen) {
   while ((bytes_read = read(fd, (ret + len), CHUNK_SIZE)) > 0) {
     len += bytes_read;
     cap += CHUNK_SIZE;
-    ret = xrealloc(ret, CHUNK_SIZE);
+    ret = xrealloc(ret, cap);
   }
   if (bytes_read == -1) {
     free(ret);
@@ -241,7 +252,7 @@ static long recv_all(int fd, char *buf, Ulong want) {
 }
 
 static void http_400(int fd, const char *msg) {
-  printf("HTTP 400: %s\n", msg);
+  log_INFO_0("HTTP 400: %s\n", msg);
   dprintf(
     fd,
     "HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Type: "
@@ -252,7 +263,7 @@ static void http_400(int fd, const char *msg) {
 
 static void http_404(int cfd) {
   const char *m = "not found";
-  printf("HTTP 404\n");
+  log_INFO_0("HTTP 404\n");
   dprintf(cfd,
           "HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Type: "
           "text/plain\r\nContent-Length: %zu\r\n\r\n%s",
@@ -260,17 +271,17 @@ static void http_404(int cfd) {
 }
 
 static void http_405(int fd) {
-  printf("HTTP 405\n");
+  log_INFO_0("HTTP 405\n");
   dprintf(
     fd,
     "HTTP/1.1 405 Method Not Allowed\r\nConnection: "
-    "close\r\nContent-Type: text/plain\r\nContent-Length: %zu\r\n\r\n%s",
+    "close\r\nContent-Type: text/plain\r\nContent-Length: %lu\r\n\r\n%s",
     SLTLEN(NOT_ALLOWED_STR), NOT_ALLOWED_STR
   );
 }
 
 void http_202(int fd) {
-  printf("HTTP 202\n");
+  log_INFO_0("HTTP 202\n");
   dprintf(
     fd,
     "HTTP/1.1 202 Accepted\r\nConnection: close\r\nContent-Type: "
@@ -281,7 +292,7 @@ void http_202(int fd) {
 
 void http_200_json(int fd, const char *body) {
   size_t len = strlen(body);
-  printf("HTTP 200: %s\n\n", body);
+  log_INFO_0("HTTP 200: %s\n\n", body);
   dprintf(
     fd,
     "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: "
@@ -290,7 +301,8 @@ void http_200_json(int fd, const char *body) {
   );
 }
 
-static void trim_trailing_newlines(char *s) {
+static void
+trim_trailing_newlines(char *s) {
   size_t n = strlen(s);
   while (n && (s[n - 1] == '\n' || s[n - 1] == '\r')) {
     s[--n] = 0;
@@ -334,7 +346,7 @@ static void handle_http_client(int cfd) {
       http_400(cfd, "bad request line");
       return;
     }
-    printf("HTTP %s %s\n", method, path);
+    log_INFO_0("HTTP %s %s\n", method, path);
     if (strcmp(method, "GET") == 0) {
       if (strcmp(path, "/health") == 0) {
         http_200_json(cfd, "{\"status\":\"ok\"}\n");
@@ -349,11 +361,12 @@ static void handle_http_client(int cfd) {
         return;
       }
     }
-    // Only POST /cmd
+    /* Only POST /cmd */
     if (strcmp(method, "POST") != 0 || strcmp(path, "/mcp") != 0) {
       http_404(cfd);
       return;
     }
+
 
     // Find Content-Length
     size_t content_length = 0;
@@ -370,7 +383,7 @@ static void handle_http_client(int cfd) {
           return;
         }
       }
-      printf("Content length: %lu\n", content_length);
+      log_INFO_0("Content length: %lu\n", content_length);
       // if (content_length >= MSG_MAX) {
       //   http_400(cfd, "body too large");
       //   return;
@@ -404,8 +417,7 @@ static void handle_http_client(int cfd) {
         return;
       }
     }
-
-    // body[content_length] = 0;
+    body[content_length] = 0;
     trim_trailing_newlines(body);  // your convention: one-line JSON
     // Enqueue (non-blocking); if full, drop with 503-ish JSON
     http_server_push(cfd, body);
@@ -436,19 +448,9 @@ static void *http_thread_main(void *_UNUSED arg) {
   return NULL;
 }
 
-static bool http_server_start(Ushort port) {
+static void http_server_start(Ushort port) {
   ALWAYS_ASSERT((server->listen_fd = create_listen_socket(port)) >= 0);
   ALWAYS_ASSERT((thread_create(&server->thread, NULL, http_thread_main, NULL)) == 0);
-  // g_srv.listen_fd = create_listen_socket(port);
-  // if (g_srv.listen_fd < 0) {
-  //   return FALSE;
-  // }
-  // g_srv.running = TRUE;
-  // if (thread_create(&http_thr, NULL, (void *(*)(void *))http_thread_main, &g_srv) != 0) {
-  //   close(g_srv.listen_fd);
-  //   return FALSE;
-  // }
-  return TRUE;
 }
 
 static void http_server_stop(void) {
@@ -466,7 +468,8 @@ static void http_server_stop(void) {
   // pthread_join(http_thr, NULL);
 }
 
-void process_http(void) {
+void
+process_http(void) {
   Msg m;
   while (queue_size(server->queue)) {
     m = http_server_pop();
@@ -481,17 +484,20 @@ void process_http(void) {
   // }
 }
 
-int init_http(void) {
+int
+init_http(void) {
   // queue_init(&g_cmd_queue);
   server = http_server_create();
-  if (!http_server_start(MCP_PORT)) {
-    fprintf(stderr, "Failed to start HTTP server on port %u: %s\n", MCP_PORT, strerror(errno));
-    return 1;
-  }
+  http_server_start(MCP_PORT);
+  // if (!http_server_start(MCP_PORT)) {
+  //   fprintf(stderr, "Failed to start HTTP server on port %u: %s\n", MCP_PORT, strerror(errno));
+  //   return 1;
+  // }
   fprintf(stderr, "HTTP control listening on http://0.0.0.0:%u \n", MCP_PORT);
   return 0;
 }
 
-void end_http(void) {
+void
+end_http(void) {
   http_server_stop();
 }

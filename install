@@ -2,3 +2,10 @@
 
 AmakeCpp --test
 AmakeCpp --install /usr/lib/libfcio.a
+
+
+# docker run --rm -p 8101:8000 ghcr.io/open-webui/mcpo:main \
+#   --server-type streamable-http \
+#   -- http://192.168.0.27:8100/mcp
+# 
+# Get the actual response needed to simply respond correctly.

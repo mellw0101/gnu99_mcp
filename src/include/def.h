@@ -40,27 +40,51 @@
 #define MCP_PORT 8100
 
 
-typedef struct argument argument;
-typedef struct tool     tool;
+/* ---------------------------------------------------------- Typedef's ---------------------------------------------------------- */
 
 
-typedef enum type {
-  TYPE_STR,
-  TYPE_INT,
-  TYPE_FLOAT,
-  TYPE_BOOL
-} type;
+typedef struct MCPToolArg_t  *MCPToolArg;
+typedef struct MCPTool_t     *MCPTool;
 
-struct argument {
-  const char *name;
-  enum type type;           // "str", "int", "float", "bool"
-  const char *description;  // optional
-  struct argument *next;
-};
+typedef cJSON *(*MCPToolCb)(cJSON *args);
 
-struct tool {
-  const char *name;
-  const char *description;
-  struct argument *arguments;  // JSON schema as string
-  struct tool *next;
-};
+
+/* ---------------------------------------------------------- Enum's ---------------------------------------------------------- */
+
+
+typedef enum {
+  MCPTOOL_ARGTYPE_STR,
+  MCPTOOL_ARGTYPE_INT,
+  MCPTOOL_ARGTYPE_FLOAT,
+  MCPTOOL_ARGTYPE_BOOL,
+#define MCPTOOL_ARGTYPE_STR    MCPTOOL_ARGTYPE_STR
+#define MCPTOOL_ARGTYPE_INT    MCPTOOL_ARGTYPE_INT
+#define MCPTOOL_ARGTYPE_FLOAT  MCPTOOL_ARGTYPE_FLOAT
+#define MCPTOOL_ARGTYPE_BOOL   MCPTOOL_ARGTYPE_BOOL
+} MCPToolArgType;
+
+
+// typedef struct argument argument;
+// typedef struct tool     tool;
+
+
+// typedef enum type {
+//   TYPE_STR,
+//   TYPE_INT,
+//   TYPE_FLOAT,
+//   TYPE_BOOL
+// } type;
+
+// struct argument {
+//   const char *name;
+//   enum type type;           // "str", "int", "float", "bool"
+//   const char *description;  // optional
+//   struct argument *next;
+// };
+
+// struct tool {
+//   const char *name;
+//   const char *description;
+//   struct argument *arguments;  // JSON schema as string
+//   struct tool *next;
+// };
